@@ -274,8 +274,8 @@ for k, v in pave_res_betcen.items():
 	paveResBC['paveRBC_un'].append(v)
 
 paveResTimeBC = {'fid':[], 'paveRTBC_un':[]}
-for k, v in pave_res_betcen.items():
-	edge_id = g_pavement_res[k[0]][k[1]]['fid']
+for k, v in pave_res_time_bc.items():
+	edge_id = g_pavement_res_time[k[0]][k[1]]['fid']
 	paveResTimeBC['fid'].append(edge_id)
 	paveResTimeBC['paveRTBC_un'].append(v)
 
@@ -385,17 +385,19 @@ gdfORLinks.loc[:, ['fid', 'MNodeFID', 'PNodeFID', 'geometry', 'length', 'BCSum',
 #
 ####################################
 
+# dfBetweenNoDirectCross - need to use this df instead of dfLinksBetCens to avoid apportioning RCL centrality to direct crossing edges.
+
 # Disaggregate RCL centrality among component pavement network links
-rdBCPave = dfLinksBetCens.loc[ dfLinksBetCens['linkType']!='direct_cross'].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
+rdBCPave = dfBetweenNoDirectCross.groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
 rdBCPave.name = 'rdBCPave'
 rdBCPave = rdBCPave.reset_index().drop('or_fid', axis=1)
-rdBCPaveExD = dfLinksBetCens.loc[ dfLinksBetCens['linkType']=='pavement'].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
+rdBCPaveExD = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['linkType']=='pavement'].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
 rdBCPaveExD.name = 'rdBCPaveExD'
 rdBCPaveExD = rdBCPaveExD.reset_index().drop('or_fid', axis=1)
-rdBCPaveRes = dfLinksBetCens.loc[ dfLinksBetCens['fid'].isin(edges_residential_jaywalk['fid'])].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
+rdBCPaveRes = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_residential_jaywalk['fid'])].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
 rdBCPaveRes.name = 'rdBCPaveRes'
 rdBCPaveRes = rdBCPaveRes.reset_index().drop('or_fid', axis=1)
-rdBCPaveRT = dfLinksBetCens.loc[ dfLinksBetCens['fid'].isin(edges_time_res_jaywalk['fid'])].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
+rdBCPaveRT = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_time_res_jaywalk['fid'])].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
 rdBCPaveRT.name = 'rdBCPaveRT'
 rdBCPaveRT = rdBCPaveRT.reset_index().drop('or_fid', axis=1)
 
@@ -417,16 +419,16 @@ dfLinksBetCens['BCDiffResFr'] = dfLinksBetCens['BCDiffRes'] / dfLinksBetCens['ro
 dfLinksBetCens['BCDiffRTFr'] = dfLinksBetCens['BCDiffRT'] / dfLinksBetCens['roadBC_un']
 
 # Also calculate the difference between average pavement centrality per pavement link and pavement centrality. This might be a better comparison for showing differences between sides of the road.
-BCDiffPv = dfLinksBetCens.loc[ dfLinksBetCens['linkType']!='direct_cross'].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveBC')
+BCDiffPv = dfBetweenNoDirectCross.groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveBC')
 BCDiffPv.name = 'BCDiffPv'
 BCDiffPv = BCDiffPv.reset_index().drop('or_fid', axis=1)
-BCDfExDiPv = dfLinksBetCens.loc[ dfLinksBetCens['linkType']=='pavement'].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveExDBC')
+BCDfExDiPv = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['linkType']=='pavement'].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveExDBC')
 BCDfExDiPv.name = 'BCDfExDiPv'
 BCDfExDiPv = BCDfExDiPv.reset_index().drop('or_fid', axis=1)
-BCDfResPv = dfLinksBetCens.loc[ dfLinksBetCens['fid'].isin(edges_residential_jaywalk)].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveResBC')
+BCDfResPv = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_residential_jaywalk['fid'])].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveResBC')
 BCDfResPv.name = 'BCDfResPv'
 BCDfResPv = BCDfResPv.reset_index().drop('or_fid', axis=1)
-BCDfRTPv = dfLinksBetCens.loc[ dfLinksBetCens['fid'].isin(edges_time_res_jaywalk)].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveRTBC')
+BCDfRTPv = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_time_res_jaywalk['fid'])].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveRTBC')
 BCDfRTPv.name = 'BCDfRTPv'
 BCDfRTPv = BCDfRTPv.reset_index().drop('or_fid', axis=1)
 
