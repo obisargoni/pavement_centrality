@@ -1,0 +1,20 @@
+{
+
+"pavenet_config": {	"or_ids":			["or_link_796","or_link_587","or_link_604","or_link_603","or_link_767","or_link_797","or_link_605"],
+					"or_node_ids":		["or_node_436"],
+					"pave_ids": 		[],
+					"carriadge_ids": 	[]},
+
+"pavement": {"color":"#4d4d5a"},
+"carriageway": {"color":"#d7d6d6"},
+"od": {"color":"#14e822"},
+"pavement_node": {"color": "grey", "linewidth":2},
+"pavement_link": {"color": "grey", "linewidth":2},
+"road_node": {"color": "black", "linewidth":2},
+"road_link": {"color": "black", "linewidth":2},
+"rays": {"color": "#249f9c", "linewidth":1},
+"poly_highlight_colour": "yellow",
+"line_highlight_colour": "#ff6400",
+"line_lowlight_colour": "#555555",
+"default_edge_colour": "black"
+}
