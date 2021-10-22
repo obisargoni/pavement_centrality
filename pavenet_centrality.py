@@ -119,7 +119,7 @@ def aggregate_bc_values(dfLinksBetCens, gdfORLinks, dict_graphs):
 		bc_sum = dfBetweenNoDirectCross.groupby("or_fid").apply(betcen_sum, pave_betcen_col=value_col)
 		bc_sum.name = sum_col
 
-		bc_range = dfBetweenNoDirectCrossgroupby("or_fid")[value_col].apply(lambda bcs: max(bcs) - min(bcs) )
+		bc_range = dfBetweenNoDirectCross.groupby("or_fid")[value_col].apply(lambda bcs: max(bcs) - min(bcs) )
 		bc_range.name = range_col
 
 		dfBCSum = pd.DataFrame(bc_sum).reset_index()
