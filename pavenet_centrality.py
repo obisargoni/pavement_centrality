@@ -224,10 +224,6 @@ edges_ex_diag_time['time'] = edges_ex_diag_time['length'] / 1.47 # From Willis 2
 edges_ex_diag_time.loc[ edges_ex_diag_time['fid'].isin(direct_links_on_a_roads), 'time'] = edges_ex_diag_time.loc[ edges_ex_diag_time['fid'].isin(direct_links_on_a_roads), 'time'] + 15 # 70% of peds crossed within 15s of arriving
 
 
-
-# Test these edges
-gdfPaveLinks.loc[ gdfPaveLinks['fid'].isin(diag_links_on_unclassified_roads)].to_file('test_res_diag.shp')
-
 edges_road = gdfORLinks.loc[:, ['MNodeFID', 'PNodeFID', 'fid', 'length']]
 
 g_pavement_ex_diag = nx.from_pandas_edgelist(edges_pavement_ex_diag, 'MNodeFID', 'PNodeFID', edge_attr=['fid','length'], create_using=nx.Graph)
@@ -453,22 +449,3 @@ gdfPaveLinksWBC.to_file(output_pave_links)
 gdfPaveLinksExDiagWBC.to_file(output_pave_ex_diag_links)
 gdfPaveLinksResWBC.to_file(output_pave_res_links)
 gdfPaveLinksRTWBC.to_file(output_pave_res_time_links)
-
-
-##############################
-#
-#
-# Archive
-#
-#
-##############################
-'''
-# Calculate the difference between pavement centralities for each road link
-dfBetweenNoCross = dfLinksBetCens.loc[dfLinksBetCens['or_link_cross'].isnull()]
-
-road_betcen_diffs_ex_diag = dfBetweenNoCross.groupby('or_fid').apply(betcen_diff, pave_betcen_col = 'paveExDBC')
-road_betcen_diffs_ex_diag.name = 'BCDiffExDi'
-
-road_betcen_diffs = dfBetweenNoCross.groupby('or_fid').apply(betcen_diff, pave_betcen_col = 'paveBC')
-road_betcen_diffs.name = 'BCDiff'
-'''
