@@ -283,7 +283,7 @@ for c1, c2 in col_pairs:
 	except AssertionError as e:
 		try:
 			# Try comparing another way
-			assert (dfLinksBetCens[c1] - dfLinksBetCens_unfactored[c2]).max()<0.00001
+			assert (dfLinksBetCens[c1] - dfLinksBetCens_unfactored[c2]).max()<0.0000001
 		except AssertionError as e:
 			print(c1, c2)
 
