@@ -126,8 +126,8 @@ def aggregate_bc_values(dfLinksBetCens, gdfORLinks, dict_graphs):
 		dfBCRange = pd.DataFrame(bc_range).reset_index()
 
 		# Merge into OR Links
-		gdfORLinks = pd.merge(gdfORLinks, dfBCSum, left_on='fid', right_on='or_fid', how='left')
-		gdfORLinks = pd.merge(gdfORLinks, dfBCRange, left_on='fid', right_on='or_fid', how='left')
+		gdfORLinks = pd.merge(gdfORLinks, dfBCSum, left_on='fid', right_on='or_fid', how='left').drop('or_fid', axis=1)
+		gdfORLinks = pd.merge(gdfORLinks, dfBCRange, left_on='fid', right_on='or_fid', how='left').drop('or_fid', axis=1)
 
 	return gdfORLinks
 
