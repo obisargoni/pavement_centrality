@@ -98,6 +98,35 @@ def get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized, weight, id_c
 
 	return dfLinksLookup
 
+def aggregate_bc_values(dfLinksBetCens, gdfORLinks, dict_graphs):
+	'''Function to refactor aggregation process
+	'''
+
+	# First exclude direct crossing links from aggregation
+	dfBetweenNoDirectCross = dfLinksBetCens.loc[ dfLinksBetCens['linkType']!= "direct_cross"]
+
+	# For each graph, aggregate these BC values to the OR link level
+	for name in dict_graphs.keys():
+		# use normalised values
+		value_col = name+"BCnorm"
+		sum_col = name+"BCsum"
+		range_col = name+"BCrange"
+
+		bc_sum = dfBetweenNoDirectCross.groupby("or_fid").apply(betcen_sum, pave_betcen_col=value_col)
+		bc_sum.name = sum_col
+
+		bc_range = dfBetweenNoDirectCrossgroupby("or_fid")[value_col].apply(lambda bcs: max(bcs) - min(bcs) )
+		bc_range.name = range_col
+
+		dfBCSum = pd.DataFrame(bc_sum).reset_index()
+		dfBCRange = pd.DataFrame(bc_range).reset_index()
+
+		# Merge into OR Links
+		gdfORLinks = pd.merge(gdfORLinks, dfBCSum, left_on='fid', right_on='or_fid', how='left')
+		gdfORLinks = pd.merge(gdfORLinks, dfBCRange, left_on='fid', right_on='or_fid', how='left')
+
+	return gdfORLinks
+
 ##########################
 #
 #
@@ -296,54 +325,14 @@ for c1, c2 in col_pairs:
 #
 ###################################
 
+gdfORLinksBC = aggregate_bc_values(dfLinksBetCens, gdfORLinks, dict_graphs)
 
-dfBetweenNoDirectCross = dfLinksBetCens.loc[ dfLinksBetCens['linkType']!= "direct_cross"]
+# Merge in road link BC values
+dfORBetCen = dfLinksBetCens.loc[:, ['or_fid', 'roadBC', 'roadBCnorm']].drop_duplicates()
+gdfORLinksBC = pd.merge(gdfORLinksBC, dfORBetCen, left_on = 'fid', right_on = 'or_fid', how='left')
 
-# Sum pavement link centralities for each road link
-sum_pave_bc_exdiag = dfBetweenNoDirectCross.groupby("or_fid").apply(betcen_sum, pave_betcen_col = 'paveExDBC')
-sum_pave_bc_exdiag.name = 'BCSumExDi'
-sum_pave_bc = dfBetweenNoDirectCross.groupby("or_fid").apply(betcen_sum, pave_betcen_col = 'paveBC')
-sum_pave_bc.name = 'BCSum'
-sum_pave_bc_res = dfBetweenNoDirectCross.groupby("or_fid").apply(betcen_sum, pave_betcen_col = 'paveResBC')
-sum_pave_bc_res.name = 'BCSumRes'
-sum_pave_bc_rt = dfBetweenNoDirectCross.groupby("or_fid").apply(betcen_sum, pave_betcen_col = 'paveRTBC')
-sum_pave_bc_rt.name = 'BCSumRT'
-
-# Also calculate the range of pavement centrality
-range_bc = dfBetweenNoDirectCross.groupby("or_fid")['paveBC'].apply(lambda bcs: max(bcs) - min(bcs) )
-range_bc.name = 'BCRange'
-range_bc_exdiag = dfBetweenNoDirectCross.groupby("or_fid")['paveExDBC'].apply(lambda bcs: max(bcs) - min(bcs) )
-range_bc_exdiag.name = 'BCRangeExDi'
-range_bc_res = dfBetweenNoDirectCross.groupby("or_fid")['paveResBC'].apply(lambda bcs: max(bcs) - min(bcs) )
-range_bc_res.name = 'BCRangeRes'
-range_bc_rt = dfBetweenNoDirectCross.groupby("or_fid")['paveRTBC'].apply(lambda bcs: max(bcs) - min(bcs) )
-range_bc_rt.name = 'BCRangeRT'
-
-dfBetCenSum = pd.DataFrame(sum_pave_bc).reset_index()
-dfBetCenSumExDiag = pd.DataFrame(sum_pave_bc_exdiag).reset_index()
-dfBetCenSumRes = pd.DataFrame(sum_pave_bc_res).reset_index()
-dfBetCenSumRT = pd.DataFrame(sum_pave_bc_rt).reset_index()
-
-dfBetCenRange = pd.DataFrame(range_bc).reset_index()
-dfBetCenRangeExDiag = pd.DataFrame(range_bc_exdiag).reset_index()
-dfBetCenRangeRes = pd.DataFrame(range_bc_res).reset_index()
-dfBetCenRangeRT = pd.DataFrame(range_bc_rt).reset_index()
-
-dfORBetCen = dfLinksBetCens.loc[:, ['or_fid', 'roadBC', 'roadBC_un']].drop_duplicates()
-
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenSum, left_on = 'fid', right_on = 'or_fid', how='left')
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenSumExDiag, left_on = 'fid', right_on = 'or_fid', how='left')
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenSumRes, left_on = 'fid', right_on = 'or_fid', how='left')
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenSumRT, left_on = 'fid', right_on = 'or_fid', how='left')
-
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenRange, left_on = 'fid', right_on = 'or_fid', how='left')
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenRangeExDiag, left_on = 'fid', right_on = 'or_fid', how='left')
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenRangeRes, left_on = 'fid', right_on = 'or_fid', how='left')
-gdfORLinks = pd.merge(gdfORLinks, dfBetCenRangeRT, left_on = 'fid', right_on = 'or_fid', how='left')
-
-gdfORLinks = pd.merge(gdfORLinks, dfORBetCen, left_on = 'fid', right_on = 'or_fid', how='left')
-
-gdfORLinks.loc[:, ['fid', 'MNodeFID', 'PNodeFID', 'geometry', 'length', 'BCSum','BCSumExDi', 'BCSumRes', 'BCSumRT', 'BCRange','BCRangeExDi', 'BCRangeRes', 'BCRangeRT', 'roadBC', 'roadBC_un']].to_file(output_road_network)
+gdfORLinksBC = gdfORLinksBC.reindex(columns = ['fid', 'MNodeFID', 'PNodeFID', 'geometry', 'length', 'BCSum','BCSumExDi', 'BCSumRes', 'BCSumRT', 'BCRange','BCRangeExDi', 'BCRangeRes', 'BCRangeRT', 'roadBC', 'roadBC_un'])
+gdfORLinksBC.to_file(output_road_network)
 
 ###################################
 #
