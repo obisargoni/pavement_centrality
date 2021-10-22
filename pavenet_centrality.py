@@ -178,7 +178,7 @@ dfLinksBFull = pd.concat([dfLinksB1, dfLinksB2], join='inner')
 dfLinksBFull.drop(['MNodeFID_y', 'PNodeFID_y'], axis=1, inplace=True)
 dfLinksBFull.rename(columns = {'MNodeFID_x':'MNodeFID', 'PNodeFID_x':'PNodeFID'}, inplace=True)
 
-# Duplcated entries in dfLinksBFull caused by OR Links having multi links. Not sure how these have krept in, but remove now
+# Duplcated entries in dfLinksBFull caused by OR Links having multi links. Not sure how these have crept in, but remove now
 or_links_to_remove = dfLinksBFull.loc[ dfLinksBFull['fid'].duplicated(), 'pedRLID'].values
 dfLinksBFull = dfLinksBFull.loc[ ~dfLinksBFull['pedRLID'].isin(or_links_to_remove)]
 gdfORLinks = gdfORLinks.loc[~gdfORLinks['fid'].isin(or_links_to_remove)]
