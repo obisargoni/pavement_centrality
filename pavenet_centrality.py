@@ -309,7 +309,7 @@ assert dfLinksCheck['diff'].max()<0.0003
 
 # Check refactoring hasn't changed values
 col_pairs = [	('fid','fid'), ('paveExDBC', 'paveExDBC_un'), ('paveBC', 'paveBC_un'), ('paveRBC', 'paveRBC_un'), 
-				('paveExDBCnorm', 'paveExDBC'), ('paveBCnorm', 'paveBC'), ('paveRBCnorm', 'paveResBC')]
+				('paveExDBCnorm', 'paveExDBC'), ('paveBCnorm', 'paveBC'), ('paveRBCnorm', 'paveResBC'), ('roadBC', 'roadBC_un')]
 for c1, c2 in col_pairs:
 	try:
 		assert (dfLinksBetCens[c1] == dfLinksBetCens_unfactored[c2]).all()
