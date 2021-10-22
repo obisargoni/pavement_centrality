@@ -283,6 +283,7 @@ g_pavement_res_time = nx.from_pandas_edgelist(edges_time_res_jaywalk, 'MNodeFID'
 
 g_road = nx.from_pandas_edgelist(edges_road, 'MNodeFID', 'PNodeFID', edge_attr=['fid','length'], create_using=nx.Graph)
 
+dict_graphs = {'paveExD':g_pavement_ex_diag, 'pave':g_pavement, 'paveR':g_pavement_res, 'paveRT':g_pavement_res_time, 'road':g_road}
 ########################
 #
 #
@@ -290,7 +291,6 @@ g_road = nx.from_pandas_edgelist(edges_road, 'MNodeFID', 'PNodeFID', edge_attr=[
 #
 #
 ########################
-dict_graphs = {'paveExD':g_pavement_ex_diag, 'pave':g_pavement, 'paveR':g_pavement_res, 'paveRT':g_pavement_res_time, 'road':g_road}
 dfLinksBetCens = get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized=False, weight = 'length', id_col='fid')
 
 # Save the data
