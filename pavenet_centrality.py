@@ -90,7 +90,11 @@ def get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized, weight, id_c
 		norm_value_col = name+"BCnorm"
 		dfBC = calculate_graph_edge_bc_centralities(graph, normalized, weight, id_col, value_col)
 
-		dfLinksLookup = pd.merge(dfLinksLookup, dfBC, left_on = 'fid', right_on = 'fid', how = 'left')
+		if name == 'road':
+			dfBC.rename({'fid':'or_fid'}, inplace=True)
+			dfLinksLookup = pd.merge(dfLinksLookup, dfBC, on='or_fid', how = 'left')
+		else:
+			dfLinksLookup = pd.merge(dfLinksLookup, dfBC, on='fid', how = 'left')
 
 		# Calculate normalised values
 		norm_factor = ( 2 / ( (len(graph.nodes)-1) * (len(graph.nodes)-2) ) )
