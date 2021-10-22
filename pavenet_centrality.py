@@ -73,6 +73,30 @@ def pave_bc_dif_from_av(df, id_col, bc_col):
 
 	return df.set_index(id_col)[bc_col] - av_bc
 
+def calculate_graph_edge_bc_centralities(g, normalized, weight, id_col, value_col):
+	bc_values = nx.edge_betweenness_centrality(g, normalized=normalized, weight=weight)
+
+	# Unpack values to link to edge id
+	output={id_col:[], value_col:[]}
+	for k, v in bc_values.items():
+		edge_id = g[k[0]][k[1]][id_col]
+		output[id_col].append(edge_id)
+		output[value_col].append(v)
+	return pd.DataFrame(output)
+
+def get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized, weight, id_col):
+	for name, graph in dict_graphs.items():
+		value_col = name+"BC"
+		norm_value_col = name+"BCnorm"
+		dfBC = calculate_graph_edge_bc_centralities(graph, normalized, weight, id_col, value_col)
+
+		dfLinksLookup = pd.merge(dfLinksLookup, dfBC, left_on = 'fid', right_on = 'fid', how = 'left')
+
+		# Calculate normalised values
+		norm_factor = ( 2 / ( (len(graph.nodes)-1) * (len(graph.nodes)-2) ) )
+		dfLinksLookup[norm_value_col] = dfLinksLookup[value_col] * norm_factor
+
+	return dfLinksLookup
 
 ##########################
 #
@@ -137,7 +161,6 @@ class_rename_dict = {	'Unknown':'Unclassified',
 						'Unclassified_Not Classified_A Road': 'A Road'
 					}
 
-
 gdfORLinks['class'] = gdfORLinks['class'].replace(class_rename_dict)
 
 assert gdfORLinks.loc[ ~gdfORLinks['class'].isin(['Unclassified','A Road','B Road', 'Classified Unnumbered'])].shape[0] == 0
@@ -189,11 +212,7 @@ dfLinksLookup = pd.concat([dfLinksA, dfLinksBFull])
 
 dfLinksLookup.rename(columns={'pedRLID':'or_fid'}, inplace=True)
 dfLinksLookup.to_csv(output_links_lookup, index=False)
-
 gdfORLinks.to_file(output_or_roads)
-
-gdfPaveLinks.to_file(pavement_network_gis_file)
-
 
 dfLinksLookup = pd.read_csv(output_links_lookup)
 
@@ -205,8 +224,6 @@ dfLinksLookup = pd.read_csv(output_links_lookup)
 #
 #
 ########################
-
-
 edges_pavement_ex_diag = gdfPaveLinks.loc[ gdfPaveLinks['linkType']!='diag_cross', ['MNodeFID', 'PNodeFID', 'fid', 'length']]
 edges_pavement = gdfPaveLinks.loc[:, ['MNodeFID', 'PNodeFID', 'fid', 'length']]
 
@@ -240,79 +257,35 @@ g_road = nx.from_pandas_edgelist(edges_road, 'MNodeFID', 'PNodeFID', edge_attr=[
 #
 #
 ########################
-
-pave_ex_diag_betcen = nx.edge_betweenness_centrality(g_pavement_ex_diag, normalized = False, weight='length')
-pave_betcen = nx.edge_betweenness_centrality(g_pavement, normalized = False, weight='length')
-pave_res_betcen = nx.edge_betweenness_centrality(g_pavement_res, normalized = False, weight='length')
-pave_res_time_bc = nx.edge_betweenness_centrality(g_pavement_res_time, normalized = False, weight='time')
-
-road_betcen = nx.edge_betweenness_centrality(g_road, normalized = False, weight='length')
-
-# Now use lookup from pavement link to or link to compare betweenness centrality measures
-
-# First convert the key from nodes to edge ids
-pave_betcen_ex_diag = {'fid':[], 'paveExDBC_un':[]}
-for k, v in pave_ex_diag_betcen.items():
-	edge_id = g_pavement_ex_diag[k[0]][k[1]]['fid']
-	pave_betcen_ex_diag['fid'].append(edge_id)
-	pave_betcen_ex_diag['paveExDBC_un'].append(v)
-
-paveBC = {'fid':[], 'paveBC_un':[]}
-for k, v in pave_betcen.items():
-	edge_id = g_pavement[k[0]][k[1]]['fid']
-	paveBC['fid'].append(edge_id)
-	paveBC['paveBC_un'].append(v)
-
-paveResBC = {'fid':[], 'paveRBC_un':[]}
-for k, v in pave_res_betcen.items():
-	edge_id = g_pavement_res[k[0]][k[1]]['fid']
-	paveResBC['fid'].append(edge_id)
-	paveResBC['paveRBC_un'].append(v)
-
-paveResTimeBC = {'fid':[], 'paveRTBC_un':[]}
-for k, v in pave_res_time_bc.items():
-	edge_id = g_pavement_res_time[k[0]][k[1]]['fid']
-	paveResTimeBC['fid'].append(edge_id)
-	paveResTimeBC['paveRTBC_un'].append(v)
-
-roadBC = {'or_fid':[], 'roadBC_un':[]}
-for k, v in road_betcen.items():
-	edge_id = g_road[k[0]][k[1]]['fid']
-	roadBC['or_fid'].append(edge_id)
-	roadBC['roadBC_un'].append(v)
-
-dfPaveBCExDiag = pd.DataFrame(pave_betcen_ex_diag)
-dfPaveBC = pd.DataFrame(paveBC)
-dfPaveResBC = pd.DataFrame(paveResBC)
-dfPaveRTBC = pd.DataFrame(paveResTimeBC)
-dfORBC = pd.DataFrame(roadBC)
-
-dfLinksBetCens = pd.merge(dfLinksLookup, dfPaveBCExDiag, left_on = 'fid', right_on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, dfPaveBC, left_on = 'fid', right_on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, dfPaveResBC, left_on = 'fid', right_on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, dfPaveRTBC, left_on = 'fid', right_on = 'fid', how = 'left')
-
-dfLinksBetCens = pd.merge(dfLinksBetCens, dfORBC, left_on = 'or_fid', right_on = 'or_fid', how = 'left')
-
-# Calculate normalised values
-dfLinksBetCens['roadBC'] = dfLinksBetCens['roadBC_un'] * ( 2 / ( (len(g_road.nodes)-1) * (len(g_road.nodes)-2) ) )
-dfLinksBetCens['paveBC'] = dfLinksBetCens['paveBC_un'] * ( 2 / ( (len(g_pavement.nodes)-1) * (len(g_pavement.nodes)-2) ) )
-dfLinksBetCens['paveExDBC'] = dfLinksBetCens['paveExDBC_un'] * ( 2 / ( (len(g_pavement_ex_diag.nodes)-1) * (len(g_pavement_ex_diag.nodes)-2) ) )
-dfLinksBetCens['paveResBC'] = dfLinksBetCens['paveRBC_un'] * ( 2 / ( (len(g_pavement_res.nodes)-1) * (len(g_pavement_res.nodes)-2) ) )
-dfLinksBetCens['paveRTBC'] = dfLinksBetCens['paveRTBC_un'] * ( 2 / ( (len(g_pavement_res_time.nodes)-1) * (len(g_pavement_res_time.nodes)-2) ) )
+dict_graphs = {'paveExD':g_pavement_ex_diag, 'pave':g_pavement, 'paveR':g_pavement_res, 'paveRT':g_pavement_res_time, 'road':g_road}
+dfLinksBetCens = get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized=False, weight = 'length', id_col='fid')
 
 # Save the data
-dfLinksBetCens.to_csv("link_betcens_unnorm.csv", index=False)
+dfLinksBetCens.to_csv("link_betcens_unnorm_refactored.csv", index=False)
 
 # Load the data
-dfLinksBetCens = pd.read_csv("link_betcens_unnorm.csv")
+dfLinksBetCens = pd.read_csv("link_betcens_unnorm_refactored.csv")
+dfLinksBetCens_unfactored = pd.read_csv("link_betcens_unnorm.csv")
 dfLinksBetCens_orig = pd.read_csv("link_betcens.csv")
 
 # Check normalised correctly
-dfLinksCheck = pd.merge(dfLinksBetCens, dfLinksBetCens_orig.reindex(columns = ['fid','paveBC']), on='fid')
-dfLinksCheck['diff'] = (dfLinksCheck['paveBC_x'] - dfLinksCheck['paveBC_y']) / dfLinksCheck['paveBC_y']
+dfLinksCheck = pd.merge(dfLinksBetCens, dfLinksBetCens_orig.reindex(columns = ['fid','paveBC']).rename(columns = {'paveBC':'paveBCnorm'}), on='fid') # Need to rename bc I have change column naming convention since this data was saved.
+dfLinksCheck['diff'] = (dfLinksCheck['paveBCnorm_x'] - dfLinksCheck['paveBCnorm_y']) / dfLinksCheck['paveBCnorm_y']
 dfLinksCheck['diff'].describe()
 assert dfLinksCheck['diff'].max()<0.0003
+
+# Check refactoring hasn't changed values
+col_pairs = [	('fid','fid'), ('paveExDBC', 'paveExDBC_un'), ('paveBC', 'paveBC_un'), ('paveRBC', 'paveRBC_un'), 
+				('paveExDBCnorm', 'paveExDBC'), ('paveBCnorm', 'paveBC'), ('paveRBCnorm', 'paveResBC')]
+for c1, c2 in col_pairs:
+	try:
+		assert (dfLinksBetCens[c1] == dfLinksBetCens_unfactored[c2]).all()
+	except AssertionError as e:
+		try:
+			# Try comparing another way
+			assert (dfLinksBetCens[c1] - dfLinksBetCens_unfactored[c2]).max()<0.00001
+		except AssertionError as e:
+			print(c1, c2)
 
 ###################################
 #
