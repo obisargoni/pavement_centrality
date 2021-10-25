@@ -375,7 +375,7 @@ gdfORLinksBC = aggregate_bc_values(dfLinksBetCens, gdfORLinks, dict_graphs)
 dfORBetCen = dfLinksBetCens.loc[:, ['or_fid', 'roadBC', 'roadBCnorm']].drop_duplicates()
 gdfORLinksBC = pd.merge(gdfORLinksBC, dfORBetCen, left_on = 'fid', right_on = 'or_fid', how='left')
 
-gdfORLinksBC = gdfORLinksBC.reindex(columns = ['fid', 'MNodeFID', 'PNodeFID', 'geometry', 'length', 'BCSum','BCSumExDi', 'BCSumRes', 'BCSumRT', 'BCRange','BCRangeExDi', 'BCRangeRes', 'BCRangeRT', 'roadBC', 'roadBC_un'])
+gdfORLinksBC = gdfORLinksBC.reindex(columns = ['fid', 'MNodeFID', 'PNodeFID', 'geometry', 'length', 'paveBCsum','paveExDBCsum', 'paveRBCsum', 'paveRTBCsum', 'paveBCrange','paveExDBCrange', 'paveRBCrange', 'paveRTBCrange', 'roadBCsum', 'roadBCrange'])
 
 gdfORLinksBC.rename(columns = {'fid':'or_link_id'}, inplace=True)
 gdfORLinksBC.to_file(output_road_network, driver='GPKG')
