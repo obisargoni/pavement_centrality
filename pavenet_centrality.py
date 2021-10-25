@@ -25,11 +25,11 @@ road_network_gis_file = os.path.join(data_dir, "open-roads RoadLink Intersect Wi
 output_links_lookup = os.path.join(data_dir, "pavement_links_to_or_links.csv")
 output_or_roads = os.path.join(data_dir, "open_roads_clean.shp")
 
-output_road_network = os.path.join(data_dir, "open-roads RoadLink betcen diffs")
-output_pave_links = os.path.join(data_dir, "pednetworkLinksWithCentralities")
-output_pave_ex_diag_links = os.path.join(data_dir, "pednetworkLinksExDiagWithCentralities")
-output_pave_res_links = os.path.join(data_dir, "pednetworkLinksResWithCentralities")
-output_pave_res_time_links = os.path.join(data_dir, "pednetworkLinksResTimeWithCentralities")
+output_road_network = os.path.join(data_dir, "open-roads RoadLink betcen diffs.gpkg")
+output_pave_links = os.path.join(data_dir, "pednetworkLinksWithCentralities.gpkg")
+output_pave_ex_diag_links = os.path.join(data_dir, "pednetworkLinksExDiagWithCentralities.gpkg")
+output_pave_res_links = os.path.join(data_dir, "pednetworkLinksResWithCentralities.gpkg")
+output_pave_res_time_links = os.path.join(data_dir, "pednetworkLinksResTimeWithCentralities.gpkg")
 
 ##########################
 #
@@ -376,7 +376,7 @@ dfORBetCen = dfLinksBetCens.loc[:, ['or_fid', 'roadBC', 'roadBCnorm']].drop_dupl
 gdfORLinksBC = pd.merge(gdfORLinksBC, dfORBetCen, left_on = 'fid', right_on = 'or_fid', how='left')
 
 gdfORLinksBC = gdfORLinksBC.reindex(columns = ['fid', 'MNodeFID', 'PNodeFID', 'geometry', 'length', 'BCSum','BCSumExDi', 'BCSumRes', 'BCSumRT', 'BCRange','BCRangeExDi', 'BCRangeRes', 'BCRangeRT', 'roadBC', 'roadBC_un'])
-gdfORLinksBC.to_file(output_road_network)
+gdfORLinksBC.to_file(output_road_network, driver='GPKG')
 
 ###################################
 #
@@ -399,7 +399,13 @@ gdfPaveLinksExDiagWBC = pd.merge(gdfPaveLinks, dfPaveBCExDiag, left_on = 'fid', 
 gdfPaveLinksResWBC = pd.merge(gdfPaveLinks, dfPaveBCRes, left_on = 'fid', right_on = 'fid', how='inner')
 gdfPaveLinksRTWBC = pd.merge(gdfPaveLinks, dfPaveBCRT, left_on = 'fid', right_on = 'fid', how='inner')
 
-gdfPaveLinksWBC.to_file(output_pave_links)
-gdfPaveLinksExDiagWBC.to_file(output_pave_ex_diag_links)
-gdfPaveLinksResWBC.to_file(output_pave_res_links)
-gdfPaveLinksRTWBC.to_file(output_pave_res_time_links)
+# Rename fid field so that data can get saved to geopackage format. Exception raised otherwise
+gdfPaveLinksWBC.rename(columns = {'fid':'pave_link_id'}, inplace=True)
+gdfPaveLinksExDiagWBC.rename(columns = {'fid':'pave_link_id'}, inplace=True)
+gdfPaveLinksResWBC.rename(columns = {'fid':'pave_link_id'}, inplace=True)
+gdfPaveLinksRTWBC.rename(columns = {'fid':'pave_link_id'}, inplace=True)
+
+gdfPaveLinksWBC.to_file(output_pave_links, driver='GPKG')
+gdfPaveLinksExDiagWBC.to_file(output_pave_ex_diag_links, driver='GPKG')
+gdfPaveLinksResWBC.to_file(output_pave_res_links, driver='GPKG')
+gdfPaveLinksRTWBC.to_file(output_pave_res_time_links, driver='GPKG')
