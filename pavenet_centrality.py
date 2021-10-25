@@ -133,6 +133,44 @@ def aggregate_bc_values(dfLinksBetCens, gdfORLinks, dict_graphs):
 
 	return gdfORLinks
 
+def dissaggregate_bc_values(dfLinksBetCens, dict_graphs):
+	# First exclude direct crossing links from aggregation
+	dfBetweenNoDirectCross = dfLinksBetCens.loc[ dfLinksBetCens['linkType']!= "direct_cross"]
+
+	# For each graph, aggregate these BC values to the OR link level
+	for name in dict_graphs.keys():
+		# use normalised values
+		value_col = name+"BCnorm"
+		disag_col = name+"BCdisag"
+		diff_col = name+"BCdiff"
+
+		bc_disag = dfBetweenNoDirectCross.groupby("or_fid").apply(disagg_centrality, id_col='fid', bc_col=value_col)
+		bc_disag.name = disag_col
+
+		# Merge into dfLinkBetCens and calculate difference between disagg bc and actual bc
+		dfLinksBetCens = pd.merge(dfLinksBetCens, bc_disag, on='fid', how='left')
+		dfLinksBetCens[diff_col] = dfLinksBetCens[value_col] - dfLinksBetCens[disag_col]
+
+	return dfLinksBetCens
+
+def dissaggregate_bc_values_pavement(dfLinksBetCens, dict_graphs):
+	# First exclude direct crossing links from aggregation
+	dfBetweenNoDirectCross = dfLinksBetCens.loc[ dfLinksBetCens['linkType']!= "direct_cross"]
+
+	# For each graph, aggregate these BC values to the OR link level
+	for name in dict_graphs.keys():
+		# use normalised values
+		value_col = name+"BCnorm"
+		diff_col = name+"BCdiff_pv"
+
+		bc_diff_pv = dfBetweenNoDirectCross.groupby("or_fid").apply(pave_bc_dif_from_av, id_col='fid', bc_col=value_col)
+		bc_diff_pv.name = diff_col
+
+		# Merge into dfLinkBetCens and calculate difference between disagg bc and actual bc
+		dfLinksBetCens = pd.merge(dfLinksBetCens, bc_diff_pv, on='fid', how='left')
+
+	return dfLinksBetCens
+
 ##########################
 #
 #
@@ -348,65 +386,13 @@ gdfORLinksBC.to_file(output_road_network)
 # Disaggregate RCL centrality and compare to pavement network centrality
 #
 ####################################
+dfLinksBetCens = dissaggregate_bc_values(dfLinksBetCens, dict_graphs)
+dfLinksBetCens = dissaggregate_bc_values_pavement(dfLinksBetCens, dict_graphs)
 
-# dfBetweenNoDirectCross - need to use this df instead of dfLinksBetCens to avoid apportioning RCL centrality to direct crossing edges.
-
-# Disaggregate RCL centrality among component pavement network links
-rdBCPave = dfBetweenNoDirectCross.groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
-rdBCPave.name = 'rdBCPave'
-rdBCPave = rdBCPave.reset_index().drop('or_fid', axis=1)
-rdBCPaveExD = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['linkType']=='pavement'].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
-rdBCPaveExD.name = 'rdBCPaveExD'
-rdBCPaveExD = rdBCPaveExD.reset_index().drop('or_fid', axis=1)
-rdBCPaveRes = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_residential_jaywalk['fid'])].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
-rdBCPaveRes.name = 'rdBCPaveRes'
-rdBCPaveRes = rdBCPaveRes.reset_index().drop('or_fid', axis=1)
-rdBCPaveRT = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_time_res_jaywalk['fid'])].groupby('or_fid').apply(disagg_centrality, id_col = 'fid', bc_col = 'roadBC')
-rdBCPaveRT.name = 'rdBCPaveRT'
-rdBCPaveRT = rdBCPaveRT.reset_index().drop('or_fid', axis=1)
-
-# Merge these into dfLinkBetCens
-dfLinksBetCens = pd.merge(dfLinksBetCens, rdBCPave, on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, rdBCPaveExD, on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, rdBCPaveRes, on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, rdBCPaveRT, on = 'fid', how = 'left')
-
-# Calculate difference between disaggregate value and actual pavement network centrality value
-dfLinksBetCens['BCDiff'] = dfLinksBetCens['paveBC'] - dfLinksBetCens['rdBCPave']
-dfLinksBetCens['BCDiffExDi'] = dfLinksBetCens['paveExDBC'] - dfLinksBetCens['rdBCPaveExD']
-dfLinksBetCens['BCDiffRes'] = dfLinksBetCens['paveResBC'] - dfLinksBetCens['rdBCPaveRes']
-dfLinksBetCens['BCDiffRT'] = dfLinksBetCens['paveRTBC'] - dfLinksBetCens['rdBCPaveRT']
-
-dfLinksBetCens['BCDiffFr'] = dfLinksBetCens['BCDiff'] / dfLinksBetCens['roadBC_un']
-dfLinksBetCens['BCDiffExDiFr'] = dfLinksBetCens['BCDiffExDi'] / dfLinksBetCens['roadBC_un']
-dfLinksBetCens['BCDiffResFr'] = dfLinksBetCens['BCDiffRes'] / dfLinksBetCens['roadBC_un']
-dfLinksBetCens['BCDiffRTFr'] = dfLinksBetCens['BCDiffRT'] / dfLinksBetCens['roadBC_un']
-
-# Also calculate the difference between average pavement centrality per pavement link and pavement centrality. This might be a better comparison for showing differences between sides of the road.
-BCDiffPv = dfBetweenNoDirectCross.groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveBC')
-BCDiffPv.name = 'BCDiffPv'
-BCDiffPv = BCDiffPv.reset_index().drop('or_fid', axis=1)
-BCDfExDiPv = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['linkType']=='pavement'].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveExDBC')
-BCDfExDiPv.name = 'BCDfExDiPv'
-BCDfExDiPv = BCDfExDiPv.reset_index().drop('or_fid', axis=1)
-BCDfResPv = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_residential_jaywalk['fid'])].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveResBC')
-BCDfResPv.name = 'BCDfResPv'
-BCDfResPv = BCDfResPv.reset_index().drop('or_fid', axis=1)
-BCDfRTPv = dfBetweenNoDirectCross.loc[ dfBetweenNoDirectCross['fid'].isin(edges_time_res_jaywalk['fid'])].groupby('or_fid').apply(pave_bc_dif_from_av, 'fid', 'paveRTBC')
-BCDfRTPv.name = 'BCDfRTPv'
-BCDfRTPv = BCDfRTPv.reset_index().drop('or_fid', axis=1)
-
-# Merge these in also
-dfLinksBetCens = pd.merge(dfLinksBetCens, BCDiffPv, on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, BCDfExDiPv, on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, BCDfResPv, on = 'fid', how = 'left')
-dfLinksBetCens = pd.merge(dfLinksBetCens, BCDfRTPv, on = 'fid', how = 'left')
-
-dfPaveBC = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveBC', 'roadBC', 'rdBCPave', 'BCDiff', 'BCDiffFr', 'paveBC_un', 'roadBC_un', 'BCDiffPv'])
-dfPaveBCExDiag = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveExDBC', 'roadBC', 'rdBCPaveExD', 'BCDiffExDi', 'BCDiffExDiFr', 'paveExDBC_un', 'roadBC_un', 'BCDfExDiPv']).dropna(axis=0, subset = ['paveExDBC'])
-dfPaveBCRes = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveResBC', 'roadBC', 'rdBCPaveRes', 'BCDiffRes', 'BCDiffResFr', 'paveRBC_un', 'roadBC_un', 'BCDfResPv']).dropna(axis=0, subset = ['paveResBC'])
-dfPaveBCRT = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveRTBC', 'roadBC', 'rdBCPaveRT', 'BCDiffRT', 'BCDiffRTFr', 'paveRTBC_un', 'roadBC_un', 'BCDfRTPv']).dropna(axis=0, subset = ['paveRTBC'])
-
+dfPaveBC = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveBC', 'roadBC', 'paveBCdisag', 'BCdiff', 'paveBCnorm', 'roadBCnorm', 'paveBCdiff_pv'])
+dfPaveBCExDiag = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveExDBC', 'roadBC', 'paveExDBCdisag', 'paveExDBCdiff', 'paveExDBCnorm', 'roadBCnorm', 'paveExDBCdiff_pv']).dropna(axis=0, subset = ['paveExDBCnorm'])
+dfPaveBCRes = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveRBC', 'roadBC', 'paveRBCdisagg', 'paveRBCdiff', 'paveRBCnorm', 'roadBCnorm', 'paveRBCdiff_pv']).dropna(axis=0, subset = ['paveRBCnorm'])
+dfPaveBCRT = dfLinksBetCens.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'paveRTBC', 'roadBC', 'paveRTBCdisag', 'paveRTBCdiff', 'paveRTBCnorm', 'roadBCnorm', 'paveRTBCdiff_pv']).dropna(axis=0, subset = ['paveRTBCnorm'])
 
 gdfPaveLinksWBC = pd.merge(gdfPaveLinks, dfPaveBC, left_on = 'fid', right_on = 'fid', how='inner')
 gdfPaveLinksExDiagWBC = pd.merge(gdfPaveLinks, dfPaveBCExDiag, left_on = 'fid', right_on = 'fid', how='inner')
