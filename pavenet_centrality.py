@@ -91,7 +91,7 @@ def get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized, weight, id_c
 		dfBC = calculate_graph_edge_bc_centralities(graph, normalized, weight, id_col, value_col)
 
 		if name == 'road':
-			dfBC.rename({'fid':'or_fid'}, inplace=True)
+			dfBC.rename(columns={'fid':'or_fid'}, inplace=True)
 			dfLinksLookup = pd.merge(dfLinksLookup, dfBC, on='or_fid', how = 'left')
 		else:
 			dfLinksLookup = pd.merge(dfLinksLookup, dfBC, on='fid', how = 'left')
