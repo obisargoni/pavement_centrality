@@ -69,6 +69,8 @@ def disagg_centrality(df, id_col, bc_col):
 
 def pave_bc_dif_from_av(df, id_col, bc_col):
 	n = df[bc_col].dropna().shape[0]
+	if n==0:
+		return None
 	av_bc = betcen_sum(df, pave_betcen_col = bc_col) / n
 
 	return df.set_index(id_col)[bc_col] - av_bc
