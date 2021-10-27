@@ -1,12 +1,17 @@
 # Script to compare network centrality measures between centre line road network and pavement network
-
+import re
 import os
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import networkx as nx
 
+import sys
+#sys.path.append("C:\\Anaconda3\\Lib\\site-packages")
+#sys.path.append("C:\\Anaconda3\\envs\\cityimage\\Lib\\site-packages")
+sys.path.append("C:\\Users\\Obi Sargoni\\Documents\\CASA\\cityImage")
 
+from cityImage import dual_gdf, dual_graph_fromGDF
 ###########################
 #
 #
@@ -18,18 +23,27 @@ import networkx as nx
 data_dir = ".\\data"
 img_dir = ".\\img"
 
+gb_epsg = 27700
+
 pavement_network_gis_file = os.path.join(data_dir, "pedNetworkLinks.shp")
 pavement_nodes_gis_file = os.path.join(data_dir, "pedNetworkNodes.shp")
 road_network_gis_file = os.path.join(data_dir, "open-roads RoadLink Intersect Within simplify angles.shp")
+road_nodes_gis_file = os.path.join(data_dir, "open-roads RoadNode Intersect Within simplify angles.shp")
 
 output_links_lookup = os.path.join(data_dir, "pavement_links_to_or_links.csv")
 output_or_roads = os.path.join(data_dir, "open_roads_clean.shp")
 
 output_road_network = os.path.join(data_dir, "open-roads RoadLink betcen diffs.gpkg")
+output_road_network_dual = os.path.join(data_dir, "open-roads RoadLink betcen diffs dual.gpkg")
+
 output_pave_links = os.path.join(data_dir, "pednetworkLinksWithCentralities.gpkg")
 output_pave_ex_diag_links = os.path.join(data_dir, "pednetworkLinksExDiagWithCentralities.gpkg")
 output_pave_res_links = os.path.join(data_dir, "pednetworkLinksResWithCentralities.gpkg")
 output_pave_res_time_links = os.path.join(data_dir, "pednetworkLinksResTimeWithCentralities.gpkg")
+
+output_pave_links_dual = os.path.join(data_dir, "dualpednetworkLinksWithCentralities.gpkg")
+output_pave_ex_diag_links_dual = os.path.join(data_dir, "dualpednetworkLinksExDiagWithCentralities.gpkg")
+output_pave_res_links_dual = os.path.join(data_dir, "dualpednetworkLinksResWithCentralities.gpkg")
 
 ##########################
 #
@@ -75,6 +89,72 @@ def pave_bc_dif_from_av(df, id_col, bc_col):
 
 	return df.set_index(id_col)[bc_col] - av_bc
 
+def edge_id_to_int(edge_id, regex):
+	edge_regex = re.compile(regex)
+	res = edge_regex.search(edge_id)
+	if res is None:
+		print(edge_id)
+		return None
+
+	new_id = ''
+	for str_node_numer in res.groups():
+		while len(str_node_numer)<4:
+			str_node_numer = '0'+str_node_numer
+		str_node_numer = '1'+str_node_numer
+		new_id+=str_node_numer
+	return int(new_id)
+
+def convert_dual_ids_to_ints(nodes_df, edges_df, network_type):
+
+	str_replace = None
+	regex = None
+	if network_type == 'road':
+		str_replace = "or_node_"
+		regex = r'or_link_(\d*)'
+	else:
+		str_replace = "pave_node_"
+		regex = r'pave_link_(\d*)_(\d*)'
+
+	# Convert node ids
+	nodes_df = nodes_df.rename(columns = {'u':'u_orig', 'v':'v_orig', 'edgeID':'edgeID_orig'})
+	edges_df = edges_df.rename(columns = {'u':'u_orig', 'v':'v_orig'})
+
+	nodes_df['u'] = nodes_df['u_orig'].str.replace(str_replace, "")
+	nodes_df['v'] = nodes_df['v_orig'].str.replace(str_replace, "")
+
+	nodes_df['edgeID'] = nodes_df['edgeID_orig'].apply(lambda str_id: edge_id_to_int(str_id, regex))
+
+	edges_df['u'] = edges_df['u_orig'].apply(lambda str_id: edge_id_to_int(str_id, regex))
+	edges_df['v'] = edges_df['v_orig'].apply(lambda str_id: edge_id_to_int(str_id, regex))
+
+	return nodes_df, edges_df
+
+def pavement_int_edge_id_to_orig_id(int_id):
+	orig_id = ''
+
+	try:
+		str_id = str(int_id)
+
+		u = int(str_id[1:len(str_id)-5])
+		v = int(str_id[6:])
+
+		orig_id = 'pave_link_{}_{}'.format(u,v)
+	except Exception as err:
+		print(err)
+		print(int_id)
+
+	return orig_id
+
+def or_int_edge_id_to_orig_id(int_id):
+	orig_id=''
+	try:
+		str_id = str(int_id)[1:]
+		orig_id = 'or_link_{}'.format(int(str_id))
+	except Exception as err:
+		print(err)
+		print(int_id)
+	return orig_id
+
 def calculate_graph_edge_bc_centralities(g, normalized, weight, id_col, value_col):
 	bc_values = nx.edge_betweenness_centrality(g, normalized=normalized, weight=weight)
 
@@ -86,13 +166,51 @@ def calculate_graph_edge_bc_centralities(g, normalized, weight, id_col, value_co
 		output[value_col].append(v)
 	return pd.DataFrame(output)
 
-def get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized, weight, id_col):
+def calculate_graph_node_bc_centralities(g, normalized, weight, id_col, value_col, network_type = 'pavement'):
+	bc_values = nx.betweenness_centrality(g, normalized=normalized, weight=weight)
+
+	# Unpack values to link to edge id
+	int_id_col = "int_"+id_col
+	output={int_id_col:[], value_col:[]}
+	for n, v in bc_values.items():
+		output[int_id_col].append(n)
+		output[value_col].append(v)
+
+	df = pd.DataFrame(output)
+
+	if network_type == 'pavement':
+		df[id_col] = df[int_id_col].map(lambda x: pavement_int_edge_id_to_orig_id(x))
+	else:
+		df[id_col] = df[int_id_col].map(lambda x: or_int_edge_id_to_orig_id(x))
+	#df.drop()
+	return df
+
+def get_all_graph_bc_values_dict(dict_graphs, normalized, weight, id_col, method = 'edges'):
+	output={}
 	for name, graph in dict_graphs.items():
 		value_col = name+"BC"
 		norm_value_col = name+"BCnorm"
-		dfBC = calculate_graph_edge_bc_centralities(graph, normalized, weight, id_col, value_col)
 
-		if name == 'road':
+		network_type = 'pavement'
+		if (name=='road') | (name=='dual_road'):
+			network_type='road'
+
+		if method=='edges':
+			dfBC = calculate_graph_edge_bc_centralities(graph, normalized, weight, id_col, value_col)
+		else:
+			dfBC = calculate_graph_node_bc_centralities(graph, normalized, weight, id_col, value_col, network_type=network_type)
+		output[name]=dfBC
+	return output
+
+def get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized, weight, id_col, method = 'edges'):
+
+	dict_bc_data = get_all_graph_bc_values_dict(dict_graphs, normalized, weight, id_col, method = 'edges')
+
+	for name, dfBC in dict_bc_data.items():
+		value_col = name+"BC"
+		norm_value_col = name+"BCnorm"
+		
+		if (name == 'road') | (name=='dual_road'):
 			dfBC.rename(columns={'fid':'or_fid'}, inplace=True)
 			dfLinksLookup = pd.merge(dfLinksLookup, dfBC, on='or_fid', how = 'left')
 		else:
@@ -171,6 +289,15 @@ def dissaggregate_bc_values_pavement(dfLinksBetCens, dict_graphs):
 
 	return dfLinksBetCens
 
+def get_dual_network(gdfJunctions, gdfLinks, cols_rename_dict, epsg = gb_epsg):
+	'''Formats links geodataframe to be compatible with the cityImage library. Then use cityImage functions to convert to dual representation
+	'''
+	gdfLinks = gdfLinks.rename(columns = cols_rename_dict)
+
+	gdfNodes_dual, gdfEdges_dual = dual_gdf(gdfJunctions, gdfLinks, epsg, oneway = False, angle = 'degree')
+
+	return gdfNodes_dual, gdfEdges_dual
+
 ##########################
 #
 #
@@ -182,6 +309,7 @@ def dissaggregate_bc_values_pavement(dfLinksBetCens, dict_graphs):
 gdfPaveNodes = gpd.read_file(pavement_nodes_gis_file)
 gdfPaveLinks = gpd.read_file(pavement_network_gis_file)
 
+gdfORNodes = gpd.read_file(road_nodes_gis_file)
 gdfORLinks = gpd.read_file(road_network_gis_file)
 gdfORLinks = gdfORLinks.reindex(columns = ['fid', 'MNodeFID', 'PNodeFID', 'class', 'geometry', 'length'])
 gdfORLinks['length'] = gdfORLinks['geometry'].length
@@ -297,11 +425,11 @@ dfLinksLookup = pd.read_csv(output_links_lookup)
 #
 #
 ########################
-edges_pavement_ex_diag = gdfPaveLinks.loc[ gdfPaveLinks['linkType']!='diag_cross', ['MNodeFID', 'PNodeFID', 'fid', 'length']]
-edges_pavement = gdfPaveLinks.loc[:, ['MNodeFID', 'PNodeFID', 'fid', 'length']]
+edges_pavement_ex_diag = gdfPaveLinks.loc[ gdfPaveLinks['linkType']!='diag_cross', ['MNodeFID', 'PNodeFID', 'fid', 'length', 'geometry']]
+edges_pavement = gdfPaveLinks.loc[:, ['MNodeFID', 'PNodeFID', 'fid', 'length', 'geometry']]
 
 diag_links_on_unclassified_roads = dfLinksLookup.loc[ (dfLinksLookup['class'] == 'Unclassified') & (dfLinksLookup['linkType']=='diag_cross'), 'fid'].values
-residential_diag_cross_edges = gdfPaveLinks.loc[ gdfPaveLinks['fid'].isin(diag_links_on_unclassified_roads), ['MNodeFID', 'PNodeFID', 'fid', 'length']]
+residential_diag_cross_edges = gdfPaveLinks.loc[ gdfPaveLinks['fid'].isin(diag_links_on_unclassified_roads), ['MNodeFID', 'PNodeFID', 'fid', 'length', 'geometry']]
 edges_residential_jaywalk = pd.concat([edges_pavement_ex_diag, residential_diag_cross_edges])
 
 direct_links_on_a_roads = dfLinksLookup.loc[ (dfLinksLookup['class']=='A Road') & (dfLinksLookup['linkType']=='direct_cross'), 'fid'].values
@@ -323,7 +451,38 @@ g_pavement_res_time = nx.from_pandas_edgelist(edges_time_res_jaywalk, 'MNodeFID'
 
 g_road = nx.from_pandas_edgelist(edges_road, 'MNodeFID', 'PNodeFID', edge_attr=['fid','length'], create_using=nx.Graph)
 
-dict_graphs = {'paveExD':g_pavement_ex_diag, 'pave':g_pavement, 'paveR':g_pavement_res, 'paveRT':g_pavement_res_time, 'road':g_road}
+dict_graphs = {'paveExD':g_pavement_ex_diag, 'pave':g_pavement, 'paveR':g_pavement_res, 'road':g_road}
+#######################
+#
+#
+# Create Dual Networks
+#
+#
+########################
+
+cols_rename_dict = {'MNodeFID':'u', 'PNodeFID':'v', 'fid':'edgeID'}
+
+#gdfPaveExDiLinks = gdfPaveLinks.loc[ gdfPaveLinks['fid'].isin(edges_pavement_ex_diag['fid'])]
+#gdfPaveResLinks = gdfPaveLinks.loc[ gdfPaveLinks['fid'].isin(edges_residential_jaywalk['fid'])]
+
+gdfORNodesDual, gdfORLinksDual = get_dual_network(gdfORNodes, gdfORLinks, cols_rename_dict)
+
+gdfPaveNodesDual, gdfPaveDual = get_dual_network(gdfPaveNodes, edges_pavement, cols_rename_dict)
+gdfPaveExDiNodesDual, gdfPaveExDiDual = get_dual_network(gdfPaveNodes, edges_pavement_ex_diag, cols_rename_dict)
+gdfPaveResNodesDual, gdfPaveResDual = get_dual_network(gdfPaveNodes, edges_residential_jaywalk, cols_rename_dict)
+
+# Convert u and v cols to ints
+gdfORNodesDualClean, gdfORLinksDualClean = convert_dual_ids_to_ints(gdfORNodesDual, gdfORLinksDual, network_type = 'road')
+gdfPaveNodesDualClean, gdfPaveDualClean = convert_dual_ids_to_ints(gdfPaveNodesDual, gdfPaveDual, network_type = 'pavement')
+gdfPaveExDiNodesDualClean, gdfPaveExDiDualClean = convert_dual_ids_to_ints(gdfPaveExDiNodesDual, gdfPaveExDiDual, network_type = 'pavement')
+gdfPaveResNodesDualClean, gdfPaveResDualClean = convert_dual_ids_to_ints(gdfPaveResNodesDual, gdfPaveResDual, network_type = 'pavement')
+
+# Create networks
+g_road_dual = dual_graph_fromGDF(gdfORNodesDualClean, gdfORLinksDualClean)
+g_pave_dual = dual_graph_fromGDF(gdfPaveNodesDualClean, gdfPaveDualClean)
+g_pave_exdiag_dual = dual_graph_fromGDF(gdfPaveExDiNodesDualClean, gdfPaveExDiDualClean)
+g_pave_res_dual = dual_graph_fromGDF(gdfPaveResNodesDualClean, gdfPaveResDualClean)
+
 ########################
 #
 #
@@ -331,10 +490,10 @@ dict_graphs = {'paveExD':g_pavement_ex_diag, 'pave':g_pavement, 'paveR':g_paveme
 #
 #
 ########################
+'''
 dfLinksBetCens = get_all_graph_bc_values(dfLinksLookup, dict_graphs, normalized=False, weight = 'length', id_col='fid')
-
-# Save the data
 dfLinksBetCens.to_csv("link_betcens_unnorm_refactored.csv", index=False)
+'''
 
 # Load the data
 dfLinksBetCens = pd.read_csv("link_betcens_unnorm_refactored.csv")
@@ -360,6 +519,44 @@ for c1, c2 in col_pairs:
 		except AssertionError as e:
 			print(c1, c2)
 
+
+###################################
+#
+#
+# Calculate dual centralities
+#
+#
+###################################
+dict_graphs_dual = {'dual_paveExD':g_pave_exdiag_dual, 'dual_pave':g_pave_dual, 'dual_paveR':g_pave_res_dual, 'dual_road':g_road_dual}
+
+'''
+dict_bc_data = get_all_graph_bc_values_dict(dict_graphs_dual, normalized=False, weight = 'ang', id_col='fid', method = 'nodes')
+dfLinksBetCensDual = dfLinksLookup.copy()
+for name, dfBC in dict_bc_data.items():
+	value_col = name+"BC"
+	norm_value_col = name+"BCnorm"
+
+	graph = dict_graphs_dual[name]
+	
+	if (name == 'road') | (name=='dual_road'):
+		dfBC.rename(columns={'fid':'or_fid'}, inplace=True)
+		dfLinksBetCensDual = pd.merge(dfLinksBetCensDual, dfBC, on='or_fid', how = 'left')
+	else:
+		dfLinksBetCensDual = pd.merge(dfLinksBetCensDual, dfBC, on='fid', how = 'left')
+
+	# Calculate normalised values
+	norm_factor = ( 2 / ( (len(graph.nodes)-1) * (len(graph.nodes)-2) ) )
+	dfLinksBetCensDual[norm_value_col] = dfLinksBetCensDual[value_col] * norm_factor
+'''
+
+dfLinksBetCensDual = get_all_graph_bc_values(dfLinksLookup, dict_graphs_dual, normalized=False, weight = 'ang', id_col='fid', method = 'nodes')
+
+# Drop unreqired columns
+dfLinksBetCensDual.drop(['int_fid_x','int_fid_y'], axis=1, inplace=True)
+dfLinksBetCensDual.to_csv("link_betcens_unnorm_refactored_dual.csv", index=False)
+
+dfLinksBetCensDual = pd.read_csv("link_betcens_unnorm_refactored_dual.csv")
+
 ###################################
 #
 #
@@ -379,6 +576,21 @@ gdfORLinksBC = gdfORLinksBC.reindex(columns = ['fid', 'MNodeFID', 'PNodeFID', 'g
 
 gdfORLinksBC.rename(columns = {'fid':'or_link_id'}, inplace=True)
 gdfORLinksBC.to_file(output_road_network, driver='GPKG')
+
+
+#
+# Repeat for dual networks
+#
+gdfORLinksBCDual = aggregate_bc_values(dfLinksBetCensDual, gdfORLinks, dict_graphs_dual)
+
+# Merge in road link BC values
+dfORBetCenDual = dfLinksBetCensDual.loc[:, ['or_fid', 'dual_roadBC', 'dual_roadBCnorm']].drop_duplicates()
+gdfORLinksBCDual = pd.merge(gdfORLinksBCDual, dfORBetCenDual, left_on = 'fid', right_on = 'or_fid', how='left')
+
+gdfORLinksBCDual = gdfORLinksBCDual.reindex(columns = ['fid', 'MNodeFID', 'PNodeFID', 'geometry', 'length', 'dual_paveBCsum','dual_paveExDBCsum', 'dual_paveRBCsum', 'dual_paveRTBCsum', 'dual_paveBCrange','dual_paveExDBCrange', 'dual_paveRBCrange', 'dual_paveRTBCrange', 'dual_roadBCsum', 'dual_roadBCrange'])
+
+gdfORLinksBCDual.rename(columns = {'fid':'or_link_id'}, inplace=True)
+gdfORLinksBCDual.to_file(output_road_network_dual, driver='GPKG')
 
 ###################################
 #
@@ -411,3 +623,27 @@ gdfPaveLinksWBC.to_file(output_pave_links, driver='GPKG')
 gdfPaveLinksExDiagWBC.to_file(output_pave_ex_diag_links, driver='GPKG')
 gdfPaveLinksResWBC.to_file(output_pave_res_links, driver='GPKG')
 gdfPaveLinksRTWBC.to_file(output_pave_res_time_links, driver='GPKG')
+
+
+#
+# Repeat for dual networks
+#
+dfLinksBetCensDual = dissaggregate_bc_values(dfLinksBetCensDual, dict_graphs_dual)
+dfLinksBetCensDual = dissaggregate_bc_values_pavement(dfLinksBetCensDual, dict_graphs_dual)
+
+dfPaveBCDual = dfLinksBetCensDual.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'dual_paveBC', 'dual_roadBC', 'dual_paveBCdisag', 'dual_BCdiff', 'dual_paveBCnorm', 'dual_roadBCnorm', 'dual_paveBCdiff_pv'])
+dfPaveBCExDiagDual = dfLinksBetCensDual.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'dual_paveExDBC', 'dual_roadBC', 'dual_paveExDBCdisag', 'dual_paveExDBCdiff', 'dual_paveExDBCnorm', 'dual_roadBCnorm', 'dual_paveExDBCdiff_pv']).dropna(axis=0, subset = ['dual_paveExDBCnorm'])
+dfPaveBCResDual = dfLinksBetCensDual.reindex(columns = ['fid', 'or_link_cross', 'or_fid', 'dual_paveRBC', 'dual_roadBC', 'dual_paveRBCdisagg', 'dual_paveRBCdiff', 'dual_paveRBCnorm', 'dual_roadBCnorm', 'dual_paveRBCdiff_pv']).dropna(axis=0, subset = ['dual_paveRBCnorm'])
+
+gdfPaveLinksWBCDual = pd.merge(gdfPaveLinks, dfPaveBCDual, left_on = 'fid', right_on = 'fid', how='inner')
+gdfPaveLinksExDiagWBCDual = pd.merge(gdfPaveLinks, dfPaveBCExDiagDual, left_on = 'fid', right_on = 'fid', how='inner')
+gdfPaveLinksResWBCDual = pd.merge(gdfPaveLinks, dfPaveBCResDual, left_on = 'fid', right_on = 'fid', how='inner')
+
+# Rename fid field so that data can get saved to geopackage format. Exception raised otherwise
+gdfPaveLinksWBCDual.rename(columns = {'fid':'pave_link_id'}, inplace=True)
+gdfPaveLinksExDiagWBCDual.rename(columns = {'fid':'pave_link_id'}, inplace=True)
+gdfPaveLinksResWBCDual.rename(columns = {'fid':'pave_link_id'}, inplace=True)
+
+gdfPaveLinksWBCDual.to_file(output_pave_links_dual, driver='GPKG')
+gdfPaveLinksExDiagWBCDual.to_file(output_pave_ex_diag_links_dual, driver='GPKG')
+gdfPaveLinksResWBCDual.to_file(output_pave_res_links_dual, driver='GPKG')
