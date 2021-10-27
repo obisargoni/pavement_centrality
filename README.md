@@ -9,10 +9,16 @@ Contains both input GIS data used to run the analysis and results
 
 Figures illustrating the analysis and findings
 
-## pavement_centrality_data
+## pavement_centrality.py
 
-This is the core data files required to run the analysis. These have been portioned off into a separate folder so that they can be shared with collaborators.
+Script for calculating centrality values
 
-## writeup
+## Comparing Road Centre Line and Pavement Network Centralities
 
-This is a download of the Overleaf writeup
+Notebook for analysing centrality data and producing figures. Html version also available.
+
+## Link to paper
+
+Draft paper on Research Gate here
+
+http://dx.doi.org/10.13140/RG.2.2.26098.02243/1
