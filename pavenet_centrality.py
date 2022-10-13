@@ -530,7 +530,7 @@ for c1, c2 in col_pairs:
 dict_graphs_dual = {'dual_paveExD':g_pave_exdiag_dual, 'dual_pave':g_pave_dual, 'dual_paveR':g_pave_res_dual, 'dual_road':g_road_dual}
 
 '''
-dict_bc_data = get_all_graph_bc_values_dict(dict_graphs_dual, normalized=False, weight = 'ang', id_col='fid', method = 'nodes')
+dict_bc_data = get_all_graph_bc_values_dict(dict_graphs_dual, normalized=False, weight = 'deg', id_col='fid', method = 'nodes')
 dfLinksBetCensDual = dfLinksLookup.copy()
 for name, dfBC in dict_bc_data.items():
 	value_col = name+"BC"
@@ -549,7 +549,7 @@ for name, dfBC in dict_bc_data.items():
 	dfLinksBetCensDual[norm_value_col] = dfLinksBetCensDual[value_col] * norm_factor
 '''
 
-dfLinksBetCensDual = get_all_graph_bc_values(dfLinksLookup, dict_graphs_dual, normalized=False, weight = 'ang', id_col='fid', method = 'nodes')
+dfLinksBetCensDual = get_all_graph_bc_values(dfLinksLookup, dict_graphs_dual, normalized=False, weight = 'deg', id_col='fid', method = 'nodes') # Shouwl be deg as weight
 
 # Drop unreqired columns
 dfLinksBetCensDual.drop(['int_fid_x','int_fid_y'], axis=1, inplace=True)
